@@ -22,10 +22,13 @@ DEFAULT_CONFIG = {
     },
     "mtran_server": {
         "url": "http://127.0.0.1:8000/translate",
-        "token": "",  # 如果 MTranServer 启用了 Token 校验，请在此填写
+        "token": "",
         "default_target_lang": "zh",
         "default_source_lang": "auto",
         "timeout": 30
+    },
+    "openai_compatibility": {
+        "model_name": "mtran-translate"  # 可自定义模型名称，例如 "gpt-4o", "gpt-3.5-turbo"
     }
 }
 
@@ -62,7 +65,6 @@ def call_mtran_server(text: str, target_lang: str = None, source_lang: str = Non
     }
     
     headers = {"Content-Type": "application/json"}
-    # 如果配置了 Token，自动加入 Authorization Header
     if token:
         headers["Authorization"] = f"Bearer {token}"
     
@@ -95,9 +97,18 @@ def parse_openai_messages(messages: list) -> tuple[str, str]:
 
 @app.get("/v1/models")
 async def list_models():
+    """ OpenAI 模型列表接口，返回配置中设置的模型名称 """
+    configured_model = CONFIG.get("openai_compatibility", {}).get("model_name", "mtran-translate")
     return {
         "object": "list",
-        "data": [{"id": "mtran-translate", "object": "model", "created": int(time.time()), "owned_by": "mtran"}]
+        "data": [
+            {
+                "id": configured_model,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "mtran"
+            }
+        ]
     }
 
 @app.post("/v1/chat/completions")
@@ -105,7 +116,10 @@ async def chat_completions(request: Request):
     body = await request.json()
     messages = body.get("messages", [])
     stream = body.get("stream", False)
-    model = body.get("model", "mtran-translate")
+    
+    # 优先使用配置文件的模型名，如果请求中有且需要回显，使用请求的 model 字段
+    default_model = CONFIG.get("openai_compatibility", {}).get("model_name", "mtran-translate")
+    model = body.get("model", default_model)
     
     text_to_translate, target_lang = parse_openai_messages(messages)
     translated_text = "未检测到需要翻译的内容。" if not text_to_translate else call_mtran_server(text_to_translate, target_lang=target_lang)
