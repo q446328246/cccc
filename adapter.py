@@ -41,14 +41,14 @@ def load_config():
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(DEFAULT_CONFIG, f, indent=4, ensure_ascii=False)
         except Exception as e:
-            print(f"[Warn] 无法创建默认配置文件: {e}")
+            print(f"[Warn] 无法创建默认配置文件: {e}", flush=True)
         return DEFAULT_CONFIG
 
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[Error] 读取配置文件失败，使用默认配置: {e}")
+        print(f"[Error] 读取配置文件失败，使用默认配置: {e}", flush=True)
         return DEFAULT_CONFIG
 
 CONFIG = load_config()
@@ -75,9 +75,9 @@ async def call_mtran_server(text: str, target_lang: str = None, source_lang: str
     if token:
         headers["Authorization"] = f"Bearer {token}"
     
-    # 打印发送给后端 MTranServer 的请求 payload
-    print(f"\n[>>> 转发至 MTranServer] URL: {url}")
-    print(f"[>>> MTran Payload] {json.dumps(payload, ensure_ascii=False)}")
+    # 【Bug修复】添加 flush=True 保证控制台能够即时打印，不被 Python 缓冲区阻塞
+    print(f"\n[>>> 转发至 MTranServer] URL: {url}", flush=True)
+    print(f"[>>> MTran Payload] {json.dumps(payload, ensure_ascii=False)}", flush=True)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
@@ -90,23 +90,25 @@ async def call_mtran_server(text: str, target_lang: str = None, source_lang: str
             else:
                 res_text = str(data)
                 
-            print(f"[<<< MTran Response] {res_text}")
+            print(f"[<<< MTran Response] {res_text}", flush=True)
             return res_text
         except Exception as e:
             err_msg = f"[MTranServer 翻译错误: {str(e)}]"
-            print(f"[<<< MTran Error] {err_msg}")
+            print(f"[<<< MTran Error] {err_msg}", flush=True)
             return err_msg
 
 def extract_target_lang(prompt_text: str, default_lang: str) -> str:
     """ 从 System Prompt 或用户输入中解析目标语言 """
+    # 【Bug修复】补充常用英文语言全称，防止 Prompt 输入 "English/Japanese" 时匹配失败
     lang_map = {
-        "中文": "zh", "汉语": "zh", "zh": "zh", "cn": "zh",
-        "英文": "en", "英语": "en", "en": "en",
-        "日文": "ja", "日语": "ja", "ja": "ja",
-        "韩文": "ko", "韩语": "ko", "ko": "ko",
-        "法文": "fr", "法语": "fr", "fr": "fr",
-        "德文": "de", "德语": "de", "de": "de",
-        "俄文": "ru", "俄语": "ru", "ru": "ru", "es": "es", "西班牙语": "es"
+        "中文": "zh", "汉语": "zh", "zh": "zh", "cn": "zh", "chinese": "zh",
+        "英文": "en", "英语": "en", "en": "en", "english": "en",
+        "日文": "ja", "日语": "ja", "ja": "ja", "japanese": "ja",
+        "韩文": "ko", "韩语": "ko", "ko": "ko", "korean": "ko",
+        "法文": "fr", "法语": "fr", "fr": "fr", "french": "fr",
+        "德文": "de", "德语": "de", "de": "de", "german": "de",
+        "俄文": "ru", "俄语": "ru", "ru": "ru", "russian": "ru",
+        "西班牙语": "es", "es": "es", "spanish": "es"
     }
     
     match = re.search(r"(?:翻译[为成]|to)\s*([a-zA-Z\u4e00-\u9fa5]+)", prompt_text, re.IGNORECASE)
@@ -145,7 +147,7 @@ def parse_openai_messages(messages: list) -> tuple[str, str]:
 @app.get("/v1/models")
 async def list_models():
     configured_model = CONFIG.get("openai_compatibility", {}).get("model_name", "mtran-translate")
-    print(f"\n[GET /v1/models] 客户端获取模型列表")
+    print(f"\n[GET /v1/models] 客户端获取模型列表", flush=True)
     return {
         "object": "list",
         "data": [
@@ -160,13 +162,13 @@ async def list_models():
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
-    print("\n" + "="*60)
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 收到新的 /v1/chat/completions 请求")
+    print("\n" + "="*60, flush=True)
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 收到新的 /v1/chat/completions 请求", flush=True)
 
     try:
         body = await request.json()
     except Exception:
-        print("[Error] 接收到的请求体非标准 JSON 格式")
+        print("[Error] 接收到的请求体非标准 JSON 格式", flush=True)
         return JSONResponse(status_code=400, content={"error": {"message": "Invalid JSON body"}})
 
     messages = body.get("messages", [])
@@ -178,9 +180,9 @@ async def chat_completions(request: Request):
     # 提取信息
     text_to_translate, target_lang = parse_openai_messages(messages)
     
-    print(f"-> 请求模型: {model} | 流式输出(stream): {stream}")
-    print(f"-> 待翻译文本: {text_to_translate}")
-    print(f"-> 识别/设定目标语言: {target_lang}")
+    print(f"-> 请求模型: {model} | 流式输出(stream): {stream}", flush=True)
+    print(f"-> 待翻译文本: {text_to_translate}", flush=True)
+    print(f"-> 识别/设定目标语言: {target_lang}", flush=True)
 
     if not text_to_translate.strip():
         translated_text = "未检测到需要翻译的内容。"
@@ -190,24 +192,24 @@ async def chat_completions(request: Request):
     req_id = f"chatcmpl-{uuid.uuid4().hex}"
     created_time = int(time.time())
 
-    print(f"<- 发送响应结果: {translated_text}")
-    print("="*60 + "\n")
+    print(f"<- 发送响应结果: {translated_text}", flush=True)
+    print("="*60 + "\n", flush=True)
 
     if stream:
-        async def event_generator():
+        async def event_generator(res_text: str, req_model: str, r_id: str, c_time: int):
             # 发送角色标识
             first_chunk = {
-                "id": req_id, "object": "chat.completion.chunk", "created": created_time, "model": model,
+                "id": r_id, "object": "chat.completion.chunk", "created": c_time, "model": req_model,
                 "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]
             }
             yield f"data: {json.dumps(first_chunk, ensure_ascii=False)}\n\n"
 
             # 分段推送文本
             chunk_size = 3
-            for i in range(0, len(translated_text), chunk_size):
-                text_slice = translated_text[i:i+chunk_size]
+            for i in range(0, len(res_text), chunk_size):
+                text_slice = res_text[i:i+chunk_size]
                 chunk = {
-                    "id": req_id, "object": "chat.completion.chunk", "created": created_time, "model": model,
+                    "id": r_id, "object": "chat.completion.chunk", "created": c_time, "model": req_model,
                     "choices": [{"index": 0, "delta": {"content": text_slice}, "finish_reason": None}]
                 }
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
@@ -215,13 +217,16 @@ async def chat_completions(request: Request):
 
             # 结束推送
             stop_chunk = {
-                "id": req_id, "object": "chat.completion.chunk", "created": created_time, "model": model,
+                "id": r_id, "object": "chat.completion.chunk", "created": c_time, "model": req_model,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
             }
             yield f"data: {json.dumps(stop_chunk, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+        return StreamingResponse(
+            event_generator(translated_text, model, req_id, created_time), 
+            media_type="text/event-stream"
+        )
     else:
         response_data = {
             "id": req_id,
