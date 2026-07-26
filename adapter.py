@@ -7,7 +7,7 @@ import requests
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-# 确保读取 exe 同级目录下的配置文件 测试
+# 确保读取 exe 同级目录下的配置文件
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 else:
