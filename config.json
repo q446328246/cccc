@@ -4,7 +4,7 @@
     "port": 5000
   },
   "mtran_server": {
-    "url": "http://127.0.0.1:8000/translate",
+    "url": "http://127.0.0.1:8989/translate",
     "token": "sk-whj",
     "default_target_lang": "zh",
     "default_source_lang": "auto",
