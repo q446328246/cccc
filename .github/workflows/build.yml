@@ -21,11 +21,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
     - name: Build with PyInstaller
       run: |
-        pyinstaller --noconfirm --onedir --console --name "MTranServer_Adapter" adapter.py
-
+        pyinstaller --noconfirm MTranServer_Adapter.spec
+        Copy-Item config.json dist/MTranServer_Adapter/config.json
     - name: Upload Executable
       uses: actions/upload-artifact@v4
       with:
